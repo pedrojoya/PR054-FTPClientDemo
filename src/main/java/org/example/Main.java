@@ -5,7 +5,6 @@ import org.apache.commons.net.ftp.FTPFile;
 import org.apache.commons.net.ftp.FTPReply;
 
 import java.io.BufferedOutputStream;
-import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
@@ -74,7 +73,7 @@ public class Main {
                         System.out.printf("Moving to %s ...\n", dirPath);
                         ftpClient.changeWorkingDirectory(dirPath);
                         printWorkingDirectory();
-                        System.out.printf("Moving to parent directory ...\n", dirPath);
+                        System.out.println("Moving to parent directory ...\n");
                         ftpClient.changeToParentDirectory();
                         printWorkingDirectory();
                     }));
@@ -86,9 +85,9 @@ public class Main {
 
             // Disconnect
             ftpClient.disconnect();
-            System.out.println("Disconnected ...");
+            System.out.println("Disconnected ...\n");
         } catch (IOException ioe) {
-            System.out.println("IO error ...");
+            System.out.println("IO error ...\n");
         }
 
     }
