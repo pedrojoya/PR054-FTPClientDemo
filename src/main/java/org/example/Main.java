@@ -1,77 +1,106 @@
 package org.example;
 
+import org.apache.commons.net.ftp.FTPClient;
 import org.apache.commons.net.ftp.FTPFile;
+import org.apache.commons.net.ftp.FTPReply;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
-
-import static org.example.ExceptionUtils.rethrowConsumer;
 
 public class Main {
 
     public static void main(String[] args) {
-        FTPManager ftpManager = new FTPManager("ftp.rediris.es");
-        Main main = new Main(ftpManager);
+        Main main = new Main();
         main.start();
     }
 
-    private final FTPManager ftpManager;
-
-    public Main(FTPManager ftpManager) {
-        this.ftpManager = ftpManager;
-    }
+    private final int FILE_TYPE = 0;
+    private final int DIR_TYPE = 1;
+    private final int SYS_LINK_TYPE = 2;
+    private final FTPClient ftpClient = new FTPClient();
+    private final String ftpServer = "ftp.rediris.es";
+    private final String username = "anonymous";
+    private final String password = "anonymous";
 
     public void start() {
         try {
             // Connect
-            System.out.printf("\nConnecting to %s ...\n", ftpManager.getFtpServer());
-            if (!ftpManager.connect()) {
-                System.out.println("Connection rejected...");
-                ftpManager.disconnect();
+            System.out.printf("\nConnecting to %s ...\n", ftpServer);
+            ftpClient.connect(ftpServer);
+            boolean connected = FTPReply.isPositiveCompletion(ftpClient.getReplyCode());
+            if (!connected) {
+                System.out.println("Connection rejected ...");
+                ftpClient.disconnect();
                 return;
             }
+            ftpClient.enterLocalPassiveMode();
 
             // Login
-            System.out.printf("Login in with %s - %s ...\n", ftpManager.getUsername(), ftpManager.getPassword());
-            if (!ftpManager.login()) {
+            System.out.printf("Login in with %s - %s ...\n", username, password);
+            if (!ftpClient.login(username, password)) {
                 System.out.println("Incorrect login ...");
-                ftpManager.disconnect();
+                ftpClient.disconnect();
                 return;
             }
             System.out.println("Logged in...");
 
             // Print working directory
-            System.out.printf("\nWorking directory: %s\n", ftpManager.getWorkingDirectoryName());
-            FTPFile[] files = ftpManager.getFiles();
-            System.out.printf("Files in working directory: %d\n", files.length);
-            String[] fileTypes = {"File", "Directory", "Symbolic link"};
-            Arrays.stream(files).forEach(ftpFile ->
-                    System.out.printf("\t%s [%s]\n", ftpFile.getName(), fileTypes[ftpFile.getType()]));
-            System.out.println();
+            printWorkingDirectory();
 
             // Downloading first file
+            FTPFile[] files = ftpClient.listFiles();
             Arrays.stream(files)
-                    .filter(ftpFile -> ftpFile.getType() == 0)
+                    .filter(ftpFile -> ftpFile.getType() == FILE_TYPE)
                     .findFirst()
-                    .ifPresent(rethrowConsumer(ftpFile -> {
+                    .ifPresent(ExceptionUtils.rethrowConsumer(ftpFile -> {
                         String fileName = ftpFile.getName();
-                        ftpManager.downloadFile(fileName, new File(fileName));
+                        try(var fis = new FileOutputStream(fileName);
+                            var bos = new BufferedOutputStream(fis)) {
+                            ftpClient.retrieveFile(fileName, bos);
+                        }
                         System.out.printf("Dowloaded %s\n\n", fileName);
                     }));
 
+            // Move to first directory
+            Arrays.stream(files)
+                    .filter(ftpFile -> ftpFile.getType() == DIR_TYPE)
+                    .skip(2) // Skip . and ..
+                    .findFirst()
+                    .ifPresent(ExceptionUtils.rethrowConsumer(ftpFile -> {
+                        String dirPath = "/" + ftpFile.getName();
+                        System.out.printf("Moving to %s ...\n", dirPath);
+                        ftpClient.changeWorkingDirectory(dirPath);
+                        printWorkingDirectory();
+                        System.out.printf("Moving to parent directory ...\n", dirPath);
+                        ftpClient.changeToParentDirectory();
+                        printWorkingDirectory();
+                    }));
+
             // Logout
-            if (ftpManager.logout()) {
-                System.out.println("Logged out from FTP server...");
+            if (ftpClient.logout()) {
+                System.out.println("Logged out from FTP server ...");
             }
 
             // Disconnect
-            ftpManager.disconnect();
-            System.out.println("Disconnected...");
+            ftpClient.disconnect();
+            System.out.println("Disconnected ...");
         } catch (IOException ioe) {
-            System.out.println("IO error...");
+            System.out.println("IO error ...");
         }
 
+    }
+
+    private void printWorkingDirectory() throws IOException {
+        System.out.printf("\nWorking directory: %s\n", ftpClient.printWorkingDirectory());
+        FTPFile[] files = ftpClient.listFiles();
+        System.out.printf("Files in working directory: %d\n", files.length);
+        String[] fileTypes = {"File", "Directory", "Symbolic link"};
+        Arrays.stream(files).forEach(ftpFile ->
+                System.out.printf("\t%s [%s]\n", ftpFile.getName(), fileTypes[ftpFile.getType()]));
+        System.out.println();
     }
 
 }
