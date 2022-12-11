@@ -16,9 +16,6 @@ public class Main {
         main.start();
     }
 
-    private final int FILE_TYPE = 0;
-    private final int DIR_TYPE = 1;
-    private final int SYS_LINK_TYPE = 2;
     private final FTPClient ftpClient = new FTPClient();
     private final String ftpServer = "ftp.rediris.es";
     private final String username = "anonymous";
@@ -52,7 +49,7 @@ public class Main {
             // Downloading first file
             FTPFile[] files = ftpClient.listFiles();
             Arrays.stream(files)
-                    .filter(ftpFile -> ftpFile.getType() == FILE_TYPE)
+                    .filter(FTPFile::isFile)
                     .findFirst()
                     .ifPresent(ExceptionUtils.rethrowConsumer(ftpFile -> {
                         String fileName = ftpFile.getName();
@@ -65,7 +62,7 @@ public class Main {
 
             // Move to first directory
             Arrays.stream(files)
-                    .filter(ftpFile -> ftpFile.getType() == DIR_TYPE)
+                    .filter(FTPFile::isDirectory)
                     .skip(2) // Skip . and ..
                     .findFirst()
                     .ifPresent(ExceptionUtils.rethrowConsumer(ftpFile -> {
